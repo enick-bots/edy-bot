@@ -59,7 +59,7 @@ const gameData = {
         { palabra: "Jirafa", pistas: ["Cuello", "Alto", "Manchas", "Hojas"] },
         { palabra: "Lobo", pistas: ["Luna", "Manada", "Aullido", "Bosque"] }
     ]
-});
+};
 
 module.exports = {
     activeGames, 
