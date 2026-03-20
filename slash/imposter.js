@@ -1,8 +1,35 @@
 const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, MessageFlags } = require('discord.js');
 const ImposterGame = require('./game.js');
-const db = require('../db'); 
 
 const activeGames = new Map();
+
+// --- BASE DE DATOS INTEGRADA ---
+const gameData = {
+    'Cine': [
+        { palabra: 'Titanic', pistas: ['Barco', 'Iceberg', 'Océano'] },
+        { palabra: 'Star Wars', pistas: ['Espacio', 'Sable de luz', 'Galaxia'] },
+        { palabra: 'Harry Potter', pistas: ['Magia', 'Varita', 'Cicatriz'] },
+        { palabra: 'Avatar', pistas: ['Azul', 'Naturaleza', 'Pandora'] }
+    ],
+    'Comida': [
+        { palabra: 'Pizza', pistas: ['Italia', 'Queso', 'Masa'] },
+        { palabra: 'Sushi', pistas: ['Arroz', 'Japón', 'Pescado'] },
+        { palabra: 'Tacos', pistas: ['México', 'Tortilla', 'Picante'] },
+        { palabra: 'Hamburguesa', pistas: ['Carne', 'Pan', 'Ketchup'] }
+    ],
+    'Lugares': [
+        { palabra: 'París', pistas: ['Francia', 'Torre Eiffel', 'Amor'] },
+        { palabra: 'Egipto', pistas: ['Pirámides', 'Desierto', 'Nilo'] },
+        { palabra: 'Japón', pistas: ['Tokio', 'Anime', 'Sushi'] },
+        { palabra: 'Roma', pistas: ['Coliseo', 'Italia', 'Gladiadores'] }
+    ],
+    'Animales': [
+        { palabra: 'León', pistas: ['Selva', 'Melena', 'Rugido'] },
+        { palabra: 'Elefante', pistas: ['Trompa', 'Grande', 'Colmillos'] },
+        { palabra: 'Tiburón', pistas: ['Mar', 'Dientes', 'Aleta'] },
+        { palabra: 'Pingüino', pistas: ['Hielo', 'Blanco y Negro', 'Antártida'] }
+    ]
+};
 
 module.exports = {
     activeGames, 
@@ -31,7 +58,6 @@ module.exports = {
         const tema = interaction.options.getString('tema');
         const usePistas = interaction.options.getString('pistas') === 'on';
 
-        // Definir emojis por tema para el embed
         const temaEmojis = { 'Cine': '🎬', 'Comida': '🍕', 'Lugares': '🌍', 'Animales': '🐾' };
         const emojiTema = temaEmojis[tema] || '📌';
 
@@ -43,7 +69,6 @@ module.exports = {
                 .setTitle("🕵️ MISTERIO: ¿QUIÉN ES EL IMPOSTOR?")
                 .setColor(0x2b2d31)
                 .addFields(
-                    // Mostramos el tema claramente en el embed de Join
                     { name: `${emojiTema} Categoría Seleccionada`, value: `**${tema.toUpperCase()}**`, inline: false },
                     { name: "👥 Sala", value: `👤 ${game.players.length}/${game.maxPlayers}`, inline: true },
                     { name: "👺 Impostores", value: `💀 ${game.numImposters}`, inline: true },
@@ -60,8 +85,8 @@ module.exports = {
             new ButtonBuilder().setCustomId('cancel').setLabel('Cancelar').setEmoji('🛑').setStyle(ButtonStyle.Danger)
         );
 
-        const response = await interaction.reply({ embeds: [updateEmbed()], components: [row], withResponse: true });
-        const msg = response.resource?.message || response;
+        const response = await interaction.reply({ embeds: [updateEmbed()], components: [row] });
+        const msg = await interaction.fetchReply();
 
         const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 600000 });
 
@@ -79,10 +104,11 @@ module.exports = {
                 if (i.user.id !== game.host.id) return i.reply({ content: "❌ Solo el host puede iniciar.", flags: [MessageFlags.Ephemeral] });
                 if (game.players.length < 4) return i.reply({ content: "⚠️ Necesitas al menos 4 jugadores.", flags: [MessageFlags.Ephemeral] });
 
-                // USAMOS LA NUEVA FUNCIÓN DE LA DB PASANDO EL TEMA
-                const dataSeleccionada = db.getImposterData(tema); 
+                // SELECCIÓN LÓGICA POR TEMA
+                const palabrasDelTema = gameData[tema];
+                const dataSeleccionada = palabrasDelTema[Math.floor(Math.random() * palabrasDelTema.length)];
                 
-                if (!dataSeleccionada) return i.reply({ content: "❌ No se encontraron palabras para este tema.", flags: [MessageFlags.Ephemeral] });
+                if (!dataSeleccionada) return i.reply({ content: "❌ Error: No hay datos para este tema.", flags: [MessageFlags.Ephemeral] });
 
                 await i.deferUpdate();
 
@@ -100,7 +126,8 @@ module.exports = {
                         .setColor(esImpostor ? 0xff0000 : 0x00aaff);
 
                     if (esImpostor) {
-                        const pstr = game.usePistas ? dataSeleccionada.pistas[Math.floor(Math.random() * dataSeleccionada.pistas.length)] : "Desactivadas";
+                        const randomPista = dataSeleccionada.pistas[Math.floor(Math.random() * dataSeleccionada.pistas.length)];
+                        const pstr = game.usePistas ? randomPista : "Desactivadas";
                         embed.setDescription(`🤫 **Tu objetivo:** No dejes que te descubran.\n\n🔎 **Tu pista es:** \`${pstr}\``);
                     } else {
                         embed.setDescription(`✅ **Tu objetivo:** Encuentra al impostor.\n\n🔑 **La palabra secreta es:** \`${game.word}\``);
