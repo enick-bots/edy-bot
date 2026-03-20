@@ -146,37 +146,140 @@ client.on('messageCreate', async (message) => {
     }
 });
 const { activeGames } = require('./slash/imposter.js');
-
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+
     const game = activeGames.get(message.channelId);
     if (!game) return;
 
-    // .kick @user
-    if (message.content.startsWith('.kick')) {
-        if (message.author.id !== game.host.id) return;
-        const target = message.mentions.users.first();
-        if (target) {
-            game.bannedIds.push(target.id);
-            game.players = game.players.filter(p => p.id !== target.id);
-            message.reply(`👞 **${target.username}** ha sido expulsado y baneado de la sala.`);
-        }
-    }
+    const isHost = message.author.id === game.host.id;
 
-    // .stop
+    // =========================
+    // 🛑 .stop (CONFIRMACIÓN)
+    // =========================
     if (message.content === '.stop') {
-        if (message.author.id !== game.host.id) return;
-        activeGames.delete(message.channelId);
-        message.reply("🛑 Partida detenida por el host.");
+        if (!isHost) {
+            return message.reply("❌ Solo el host puede detener la partida.");
+        }
+
+        const embed = new EmbedBuilder()
+            .setTitle("⚠️ Confirmar finalización")
+            .setDescription("¿Seguro que quieres terminar la partida?\n\nEsta acción no se puede deshacer.")
+            .setColor(0xff0000);
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('confirm_stop')
+                .setLabel('Sí, terminar')
+                .setStyle(ButtonStyle.Danger),
+            new ButtonBuilder()
+                .setCustomId('cancel_stop')
+                .setLabel('Cancelar')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        const msg = await message.reply({ embeds: [embed], components: [row] });
+
+        const collector = msg.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            time: 15000
+        });
+
+        collector.on('collect', async (i) => {
+            if (i.user.id !== message.author.id) {
+                return i.reply({ content: "❌ Solo el host puede usar esto.", ephemeral: true });
+            }
+
+            if (i.customId === 'confirm_stop') {
+                activeGames.delete(message.channelId);
+
+                await i.update({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle("🛑 Partida terminada")
+                            .setDescription("El host ha finalizado la partida.")
+                            .setColor(0x2b2d31)
+                    ],
+                    components: []
+                });
+
+                collector.stop();
+            }
+
+            if (i.customId === 'cancel_stop') {
+                await i.update({
+                    content: "❌ Cancelado.",
+                    embeds: [],
+                    components: []
+                });
+
+                collector.stop();
+            }
+        });
+
+        collector.on('end', async () => {
+            try {
+                await msg.edit({ components: [] });
+            } catch {}
+        });
     }
 
-    // .reveal
+    // =========================
+    // 📢 .reveal (EMBED)
+    // =========================
     if (message.content === '.reveal') {
-        if (!game.started) return;
-        const imps = game.imposterIds.map(id => `<@${id}>`).join(', ');
-        message.reply(`📢 Los impostores eran: ${imps}\nLa palabra era: **${game.word}**`);
+        if (!isHost) {
+            return message.reply("❌ Solo el host puede revelar.");
+        }
+
+        if (!game.started) {
+            return message.reply("⚠️ El juego aún no ha comenzado.");
+        }
+
+        const imps = game.imposterIds.map(id => `<@${id}>`).join('\n') || "Nadie";
+
+        const embed = new EmbedBuilder()
+            .setTitle("📢 FIN DEL JUEGO")
+            .setColor(0x00aaff)
+            .addFields(
+                { name: "👺 Impostores", value: imps },
+                { name: "🔑 Palabra", value: `**${game.word}**` }
+            )
+            .setFooter({ text: "Gracias por jugar 😈" })
+            .setTimestamp();
+
         activeGames.delete(message.channelId);
+
+        return message.reply({ embeds: [embed] });
+    }
+
+    // =========================
+    // 👞 .kick
+    // =========================
+    if (message.content.startsWith('.kick')) {
+        if (!isHost) {
+            return message.reply("❌ Solo el host puede expulsar.");
+        }
+
+        const target = message.mentions.users.first();
+
+        if (!target) {
+            return message.reply("⚠️ Menciona a alguien.");
+        }
+
+        if (!game.isPlayer(target.id)) {
+            return message.reply("❌ No está en la partida.");
+        }
+
+        if (target.id === game.host.id) {
+            return message.reply("❌ No puedes expulsarte.");
+        }
+
+        game.banPlayer(target.id);
+
+        return message.reply(`👞 **${target.username}** fue expulsado.`);
     }
 });
 
