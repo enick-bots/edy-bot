@@ -11,10 +11,13 @@ app.listen(PORT, () => {
 });
 
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { commandPermissions, snipes, esnipes } = require('./db.js');
+
+// --- CORRECCIÓN DE IMPORTACIÓN ---
+const db = require('./db.js'); 
+const { commandPermissions, snipes, esnipes } = db; 
 
 const client = new Client({
     intents: [
@@ -26,28 +29,25 @@ const client = new Client({
 });
 
 client.commands = new Collection();
-// 1. IMPORTANTE: Ordenar prefijos de más largo a más corto
 const prefixes = ["Jarvis ", "Jarvis", "edy ", "Edy ", "edy", "Edy", "."];
 
+// Cargar comandos de prefijo
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
-    if ('name' in command) {
-        client.commands.set(command.name, command);
+if (fs.existsSync(commandsPath)) {
+    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+    for (const file of commandFiles) {
+        const command = require(path.join(commandsPath, file));
+        if ('name' in command) client.commands.set(command.name, command);
     }
 }
 
+// Cargar Slash Commands
 const slashPath = path.join(__dirname, 'slash');
 if (fs.existsSync(slashPath)) {
     const slashFiles = fs.readdirSync(slashPath).filter(file => file.endsWith('.js'));
     for (const file of slashFiles) {
-        const filePath = path.join(slashPath, file);
-        const command = require(filePath);
-        if (command.data && command.data.name) {
-            client.commands.set(command.data.name, command);
-        }
+        const command = require(path.join(slashPath, file));
+        if (command.data && command.data.name) client.commands.set(command.data.name, command);
     }
 }
 
@@ -55,16 +55,16 @@ client.once('ready', () => {
     console.log(`Bot listo como ${client.user.tag}`);
 });
 
+// Eventos de Snipe
 client.on('messageDelete', (message) => {
     if (message.author?.bot || !message.guild) return;
     let channelSnipes = snipes.get(message.channel.id) || [];
-    const snipeData = {
+    channelSnipes.unshift({
         content: message.content || "Mensaje sin texto",
         author: message.author,
         timestamp: message.createdAt,
         image: message.attachments.first()?.proxyURL || null
-    };
-    channelSnipes.unshift(snipeData);
+    });
     if (channelSnipes.length > 7) channelSnipes.pop();
     snipes.set(message.channel.id, channelSnipes);
 });
@@ -72,42 +72,44 @@ client.on('messageDelete', (message) => {
 client.on('messageUpdate', (oldMsg, newMsg) => {
     if (oldMsg.author?.bot || !oldMsg.guild || oldMsg.content === newMsg.content) return;
     let channelEsnipes = esnipes.get(oldMsg.channel.id) || [];
-    const esnipeData = {
+    channelEsnipes.unshift({
         oldContent: oldMsg.content || "Sin texto",
         newContent: newMsg.content || "Sin texto",
         author: oldMsg.author,
         timestamp: new Date()
-    };
-    channelEsnipes.unshift(esnipeData);
+    });
     if (channelEsnipes.length > 7) channelEsnipes.pop();
     esnipes.set(oldMsg.channel.id, channelEsnipes);
 });
 
-client.on('interactionCreate', async (interaction) => {
+// --- ÚNICO EVENTO DE INTERACCIÓN ---
+client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return;
+
     const command = client.commands.get(interaction.commandName);
     if (!command) return;
+
+    // Obtenemos el usuario de la DB antes de ejecutar
+    const user = db.getUser(interaction.user.id); 
+
     try {
-        await command.execute(interaction);
+        // Pasamos interaction, user y db al comando
+        await command.execute(interaction, user, db);
     } catch (error) {
         console.error(error);
-        if (interaction.replied || interaction.deferred) {
-            await interaction.followUp({ content: 'Hubo un error al ejecutar el slash command.', ephemeral: true });
-        } else {
-            await interaction.reply({ content: 'Hubo un error al ejecutar el slash command.', ephemeral: true });
-        }
+        const errorMsg = { content: 'Hubo un error al ejecutar el comando.', flags: [MessageFlags.Ephemeral] };
+        if (interaction.replied || interaction.deferred) await interaction.followUp(errorMsg);
+        else await interaction.reply(errorMsg);
     }
 });
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
-    // 2. Lógica mejorada de detección de prefijo
     const contentLower = message.content.toLowerCase();
     const prefix = prefixes.find(p => contentLower.startsWith(p.toLowerCase()));
     
     if (prefix) {
-        // Quitamos el prefijo y limpiamos espacios al inicio y final
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift()?.toLowerCase();
 
@@ -118,10 +120,12 @@ client.on('messageCreate', async (message) => {
             if (command) {
                 const requiredRoleId = commandPermissions.get(command.name);
                 if (requiredRoleId && !message.member.roles.cache.has(requiredRoleId)) {
-                    return message.reply("No tienes el rol necesario configurado en .config para usar este comando.");
+                    return message.reply("No tienes el rol necesario.");
                 }
                 try {
-                    return await command.execute(message, args);
+                    // Para comandos de prefijo, podrías necesitar pasar db y user también:
+                    const user = db.getUser(message.author.id);
+                    return await command.execute(message, args, user, db);
                 } catch (error) {
                     console.error(error);
                     return message.reply("Hubo un error al ejecutar este comando.");
@@ -130,18 +134,51 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // Respuestas automáticas (fuera del prefijo)
-    const personaEspecial = '1292577920149360690';
-    if (message.mentions.has(personaEspecial)) {
+    // Respuestas automáticas
+    if (message.mentions.has('1292577920149360690')) {
         return message.reply("bro encuerate y manda foto 👀");
     }
 
     const gatillos = ["q", "que", "k", "ke"];
     if (gatillos.includes(message.content.toLowerCase().trim())) {
         const emojiServidor = message.guild.emojis.cache.find(e => e.name === 'fangato');
-        const respuesta = emojiServidor ? `so ${emojiServidor}` : "so 🧀";
-        return message.reply(respuesta);
+        return message.reply(emojiServidor ? `so ${emojiServidor}` : "so 🧀");
     }
 });
+const { activeGames } = require('./slash/imposter.js');
+
+
+client.on('messageCreate', async (message) => {
+    if (message.author.bot) return;
+    const game = activeGames.get(message.channelId);
+    if (!game) return;
+
+    // .kick @user
+    if (message.content.startsWith('.kick')) {
+        if (message.author.id !== game.host.id) return;
+        const target = message.mentions.users.first();
+        if (target) {
+            game.bannedIds.push(target.id);
+            game.players = game.players.filter(p => p.id !== target.id);
+            message.reply(`👞 **${target.username}** ha sido expulsado y baneado de la sala.`);
+        }
+    }
+
+    // .stop
+    if (message.content === '.stop') {
+        if (message.author.id !== game.host.id) return;
+        activeGames.delete(message.channelId);
+        message.reply("🛑 Partida detenida por el host.");
+    }
+
+    // .reveal
+    if (message.content === '.reveal') {
+        if (!game.started) return;
+        const imps = game.imposterIds.map(id => `<@${id}>`).join(', ');
+        message.reply(`📢 Los impostores eran: ${imps}\nLa palabra era: **${game.word}**`);
+        activeGames.delete(message.channelId);
+    }
+});
+
 
 client.login(process.env.TOKEN);

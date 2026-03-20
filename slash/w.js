@@ -1,67 +1,105 @@
-        // --- WORDLE ---
-        if (sub === 'wordle') {
-            const palabras = ['CASAS', 'PERRO', 'GATOS', 'MESAS', 'COCHE', 'LIMON', 'RADIO', 'PIANO'];
-            const secreta = palabras[Math.floor(Math.random() * palabras.length)];
-            let intentos = 0;
-            const maxIntentos = 6;
+const { SlashCommandBuilder, EmbedBuilder, MessageFlags } = require('discord.js');
 
-            if (!esGratis) user.coins -= amount;
-            db.saveAll();
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('wordle')
+        .setDescription('Adivina la palabra y gana coins')
+        .addIntegerOption(option => 
+            option.setName('apuesta')
+                .setDescription('Cantidad de coins a apostar')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('dificultad')
+                .setDescription('Nivel de dificultad')
+                .setRequired(true)
+                .addChoices(
+                    { name: 'Fácil (x1.2)', value: 'facil' },
+                    { name: 'Medio (x2.0)', value: 'medio' },
+                    { name: 'Difícil (x3.5)', value: 'dificil' }
+                )),
 
-            const embed = new EmbedBuilder()
-                .setTitle('Juego de Wordle')
-                .setDescription(`He pensado una palabra de 5 letras. Tienes ${maxIntentos} intentos.\nEscribe la palabra en el chat para jugar.`)
-                .setColor(0x000000)
-                .setFooter({ text: `Apuesta: ${amount} | Saldo: ${user.coins}` });
+    async execute(interaction, user, db) {
+        const amount = interaction.options.getInteger('apuesta');
+        const dificultad = interaction.options.getString('dificultad');
+        
+        if (amount < 10) return interaction.reply({ content: 'La apuesta mínima es de 10 ' + db.emoji, flags: [MessageFlags.Ephemeral] });
+        if (user.coins < amount) return interaction.reply({ content: `No tienes suficiente saldo (${user.coins} ${db.emoji})`, flags: [MessageFlags.Ephemeral] });
 
-            await interaction.reply({ embeds: [embed] });
+        // --- FIX AQUÍ: Se añadieron los números de letras ---
+        const config = {
+            facil: { mult: 1.2, letras: [3, 4] },
+            medio: { mult: 2.0, letras: [5, 6] },
+            dificil: { mult: 3.5, letras: [7] }
+        };
 
-            const filter = m => m.author.id === interaction.user.id && m.content.length === 5;
-            const collector = interaction.channel.createMessageCollector({ filter, time: 60000 });
+        const palabrasPool = [
+            'SOL', 'PAN', 'MAR', 'LUZ', 'RIO', 'GAS', 'VIA', 'GOL', 'CASA', 'VIDA', 'COMA', 'TREN', 'BOLA', 'MESA', 'ROSA', 
+            'PERRO', 'GATOS', 'MESAS', 'COCHE', 'LIMON', 'RADIO', 'PIANO', 'ARBOL', 'BARCO', 'LIBRO', 'MANO', 'CIELO', 
+            'PLANET', 'BLANCO', 'CAMINO', 'CUERPO', 'DORMIR', 'ESPEJO', 'FUERTE', 'HIERRO', 'JARDIN', 'LLUVIA', 'MADERA', 
+            'PLANETA', 'ESTRELLA', 'BOTONES', 'COMIDA', 'GUITARRA', 'QUERER', 'RAPIDO', 'DESTINO', 'CABALLO', 'CERVEZA'
+        ];
 
-            collector.on('collect', async m => {
-                intentos++;
-                const intento = m.content.toUpperCase();
-                let resultado = "";
-                let aciertosVerdes = 0;
+        const filtradas = palabrasPool.filter(p => config[dificultad].letras.includes(p.length));
+        const secreta = filtradas[Math.floor(Math.random() * filtradas.length)].toUpperCase();
+        const longitud = secreta.length;
+        let intentos = 0;
+        const maxIntentos = 6;
 
-                // Lógica de colores
-                for (let i = 0; i < 5; i++) {
-                    if (intento[i] === secreta[i]) {
-                        resultado += "🟩"; // Correcta
-                        aciertosVerdes++;
-                    } else if (secreta.includes(intento[i])) {
-                        resultado += "🟨"; // Posición incorrecta
-                    } else {
-                        resultado += "⬛"; // No existe
-                    }
+        user.coins -= amount;
+        db.saveAll();
+
+        const embed = new EmbedBuilder()
+            .setTitle('🎮 WORDLE: ' + dificultad.toUpperCase())
+            .setDescription(`He pensado una palabra de **${longitud}** letras.\nTienes **${maxIntentos}** intentos.\n\nEscribe tu respuesta en el chat.`)
+            .setColor('#2b2d31')
+            .setFooter({ text: `Apuesta: ${amount}${db.emoji} | Multiplicador: ${config[dificultad].mult}x` });
+
+        await interaction.reply({ embeds: [embed] });
+
+        const filter = m => m.author.id === interaction.user.id && m.content.length === longitud;
+        const collector = interaction.channel.createMessageCollector({ filter, time: 100000 });
+
+        collector.on('collect', async m => {
+            intentos++;
+            const intento = m.content.toUpperCase();
+            let tempSecreta = secreta.split('');
+            let resultado = Array(longitud).fill('⬛');
+
+            for (let i = 0; i < longitud; i++) {
+                if (intento[i] === tempSecreta[i]) {
+                    resultado[i] = '🟩';
+                    tempSecreta[i] = null;
                 }
-
-                if (intento === secreta) {
-                    collector.stop('win');
-                    const premio = Math.floor(amount * 3);
-                    if (!esGratis) user.coins += premio;
-                    db.saveAll();
-                    return m.reply(`${resultado}\nGanaste. La palabra era ${secreta}. Recibes ${premio} coins.`);
+            }
+            for (let i = 0; i < longitud; i++) {
+                if (resultado[i] === '⬛' && tempSecreta.includes(intento[i])) {
+                    resultado[i] = '🟨';
+                    tempSecreta[tempSecreta.indexOf(intento[i])] = null;
                 }
+            }
 
-                if (intentos >= maxIntentos) {
-                    collector.stop('lose');
-                    return m.reply(`${resultado}\nPerdiste. La palabra era ${secreta}.`);
-                }
+            const visual = resultado.join('');
 
-                // Pago parcial por letras verdes (opcional, basado en tu idea de "conforme le atina gana")
-                if (!esGratis && aciertosVerdes > 0) {
-                    const bonus = aciertosVerdes * 5;
-                    user.coins += bonus;
-                    db.saveAll();
-                    m.reply(`${resultado}\nIntento ${intentos}/${maxIntentos}. Ganaste ${bonus} coins por letras acertadas.`);
-                } else {
-                    m.reply(`${resultado}\nIntento ${intentos}/${maxIntentos}. Sigue intentando.`);
-                }
-            });
+            if (intento === secreta) {
+                const premio = Math.floor(amount * config[dificultad].mult);
+                user.coins += premio;
+                db.saveAll();
+                collector.stop('win');
+                return m.reply(`${visual}\n\n🏆 **¡GANASTE!**\nPalabra: \`${secreta}\`\nRecibes **${premio} ${db.emoji}**.`);
+            }
 
-            collector.on('end', (collected, reason) => {
-                if (reason === 'time') interaction.followUp({ content: 'Tiempo agotado. El juego de Wordle ha terminado.', ephemeral: true });
-            });
-        }
+            if (intentos >= maxIntentos) {
+                collector.stop('lose');
+                return m.reply(`${visual}\n\n💀 **PERDISTE.**\nLa palabra era \`${secreta}\`.`);
+            }
+
+            m.reply(`${visual} \`Intento ${intentos}/${maxIntentos}\``);
+        });
+
+        collector.on('end', (collected, reason) => {
+            if (reason === 'time') {
+                interaction.followUp({ content: `⏰ Tiempo agotado. La palabra era \`${secreta}\`.`, flags: [MessageFlags.Ephemeral] });
+            }
+        });
+    }
+};

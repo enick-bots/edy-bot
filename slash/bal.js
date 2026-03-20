@@ -1,33 +1,34 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const db = require('../db.js');
+const { SlashCommandBuilder, EmbedBuilder, time } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('perfil')
-        .setDescription('Mira tus estadísticas o las de otro usuario')
+        .setDescription('Mira las estadísticas de un usuario')
         .addUserOption(o => o.setName('usuario').setDescription('Usuario a consultar')),
-    async execute(interaction) {
-        const target = interaction.options.getUser('usuario') || interaction.user;
-        const userData = db.getUser(target.id);
 
-        // Calcular posición en el ranking
-        const ranking = Array.from(db.economyDB.entries())
-            .map(([id, data]) => ({ id, coins: data.coins }))
-            .sort((a, b) => b.coins - a.coins);
-        
-        const posicion = ranking.findIndex(u => u.id === target.id) + 1;
+    async execute(interaction, user, db) {
+        const targetUser = interaction.options.getUser('usuario') || interaction.user;
+        const targetMember = await interaction.guild.members.fetch(targetUser.id);
+        const userData = db.getUser(targetUser.id);
+
+        const creado = time(targetUser.createdAt, 'R');
+        const unido = time(targetMember.joinedAt, 'R');
+        const topRole = targetMember.roles.highest;
 
         const embed = new EmbedBuilder()
-            .setTitle(`Perfil de ${target.username}`)
-            .setColor(0x000000)
-            .setThumbnail(target.displayAvatarURL())
+            .setAuthor({ name: `Perfil de ${targetUser.username}`, iconURL: targetUser.displayAvatarURL() })
+            .setColor(topRole.color || '#2b2d31')
+            .setThumbnail(targetUser.displayAvatarURL({ size: 512 }))
             .addFields(
-                { name: 'Monedas', value: `${userData.coins}`, inline: true },
-                { name: 'Tiradas gratis', value: `${userData.spins}`, inline: true },
-                { name: 'Ranking', value: `#${posicion || 'Sin datos'}`, inline: true },
-                { name: 'Racha diaria', value: `${userData.streak || 0} dias`, inline: true }
+                { name: '💰 Economía', value: `Saldo: ${userData.coins} ${db.emoji}\nSpins: ${userData.spins} 🌀\nRacha: ${userData.streak || 0} días`, inline: true },
+                { name: '🛡️ Información', value: `Rol mas alto: ${topRole}\nID: ${targetUser.id}`, inline: true },
+                { name: '📅 Fechas', value: `En Discord desde ${creado}\nSe unió al servidor ${unido}`, inline: false }
             )
-            .setFooter({ text: `ID: ${target.id}` });
+            .setFooter({ 
+                text: `Solicitado por ${interaction.user.username}`, 
+                iconURL: interaction.user.displayAvatarURL() 
+            })
+            .setTimestamp();
 
         await interaction.reply({ embeds: [embed] });
     },

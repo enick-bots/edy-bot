@@ -1,46 +1,27 @@
-const { AttachmentBuilder } = require('discord.js');
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
     name: 'tfa',
     async execute(message, args) {
+        // Buscamos al mencionado o al autor
         const target = message.mentions.users.first() || message.author;
+        
+        // Generamos el porcentaje
         const porcentaje = Math.floor(Math.random() * 101);
         
-        // Creamos el lienzo
-        const canvas = createCanvas(500, 500);
-        const ctx = canvas.getContext('2d');
+        // La URL de tu imagen
+        const urlImagen = 'https://i.postimg.cc';
 
-        try {
-            // Cargamos tu imagen directamente desde la URL que pasaste
-            const imgAtrocidad = await loadImage('https://i.ibb.co/Hjw2Fcq/Screenshot-20260121-133651-Tik-Tok.webp');
-            
-            // Dibujamos la imagen de fondo
-            ctx.drawImage(imgAtrocidad, 0, 0, 500, 500); 
+        // Creamos el Embed con el título que pediste
+        const embed = new EmbedBuilder()
+            .setTitle(`Atrocidad de ${target.username}`)
+            .setImage(urlImagen)
+            .setColor('#ff0000'); // Rojo atrocidad
 
-            // Configuración del texto del porcentaje
-            ctx.font = 'bold 80px sans-serif';
-            ctx.fillStyle = '#ff0000'; 
-            ctx.textAlign = 'center';
-            
-            // Borde negro al texto
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 8;
-            ctx.strokeText(`${porcentaje}%`, 250, 450);
-            ctx.fillText(`${porcentaje}%`, 250, 450);
-
-            // Generamos el attachment con el buffer de NAPI
-            const buffer = canvas.toBuffer('image/png');
-            const attachment = new AttachmentBuilder(buffer, { name: 'atrocidad.png' });
-            
-            message.reply({ 
-                content: `${target}, ¡Te falta atrocidad!`, 
-                files: [attachment] 
-            });
-
-        } catch (error) {
-            console.error(error);
-            message.reply('Hubo un error al cargar la imagen.');
-        }
+        // Enviamos la mención, el porcentaje y el embed
+        message.reply({ 
+            content: `${target} **${porcentaje}%**, ¡te falta atrocidad!`, 
+            embeds: [embed] 
+        });
     }
 };

@@ -1,49 +1,55 @@
-const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, ComponentType } = require('discord.js');
-const db = require('../db.js');
+const { SlashCommandBuilder, EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle, MessageFlags, ComponentType } = require('discord.js');
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('play')
         .setDescription('Centro de juegos y apuestas')
         .addSubcommand(sub => sub.setName('blackjack')
-            .setDescription('🃏 Blackjack: Llega a 21 (Gana x2)')
-            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta (10-500) o 0 para gratis').setMinValue(0).setMaxValue(500)))
+            .setDescription('🃏 Blackjack: Gana a la casa (x1.8)')
+            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta').setMinValue(0).setMaxValue(500)))
         .addSubcommand(sub => sub.setName('snake')
-            .setDescription('🐍 Snake: Muevete y sobrevive (Gana x2)')
-            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta (10-500) o 0 para gratis').setMinValue(0).setMaxValue(500)))
+            .setDescription('🐍 Snake: Sobrevive y crece (x1.5)')
+            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta').setMinValue(0).setMaxValue(500)))
         .addSubcommand(sub => sub.setName('slots')
-            .setDescription('🎰 Slots: Gana hasta x3 (Costo: Apuesta + 50 tirada)')
-            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta (10-500) o 0 para gratis').setMinValue(0).setMaxValue(500)))
+            .setDescription('🎰 Slots: La suerte del casino')
+            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta').setMinValue(0).setMaxValue(500)))
         .addSubcommand(sub => sub.setName('penaltis')
-            .setDescription('⚽ Penaltis: Duelo de arquería')
-            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta (10-500) o 0 para gratis').setMinValue(0).setMaxValue(500))
-            .addStringOption(opt => opt.setName('dificultad').setDescription('Nivel del portero').addChoices(
-                { name: 'Fácil (2 huecos)', value: 'easy' },
-                { name: 'Medio (4 huecos)', value: 'mid' },
-                { name: 'Difícil (6 huecos)', value: 'hard' }
+            .setDescription('⚽ Penaltis: Tanda con rondas')
+            // IMPORTANTE: Primero la obligatoria (dificultad) para evitar errores de Discord
+            .addStringOption(opt => opt.setName('dificultad').setDescription('Nivel').setRequired(true).addChoices(
+                { name: 'Fácil (x1.1)', value: 'easy' },
+                { name: 'Medio (x1.8)', value: 'mid' },
+                { name: 'Difícil (x3.5)', value: 'hard' }
+            ))
+            .addIntegerOption(opt => opt.setName('amount').setDescription('Apuesta').setMinValue(0).setMaxValue(500))
+            .addIntegerOption(opt => opt.setName('rondas').setDescription('Número de tiros').addChoices(
+                { name: '1 Ronda', value: 1 },
+                { name: '3 Rondas', value: 3 },
+                { name: '5 Rondas', value: 5 }
             ))),
 
-    async execute(interaction) {
-        const user = db.getUser(interaction.user.id);
+    async execute(interaction, user, db) {
         const sub = interaction.options.getSubcommand();
         const amount = interaction.options.getInteger('amount') || 0;
         const esGratis = amount === 0;
 
         if (!esGratis && user.coins < amount) {
-            return interaction.reply({ content: `No tienes suficientes coins. Saldo: ${user.coins}`, ephemeral: true });
+            return interaction.reply({ content: `No tienes suficientes ${db.emoji}. Saldo: ${user.coins}`, flags: [MessageFlags.Ephemeral] });
         }
 
         // --- BLACKJACK ---
         if (sub === 'blackjack') {
             if (!esGratis) user.coins -= amount;
-            const mazo = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
-            const dar = () => mazo[Math.floor(Math.random()*mazo.length)];
+            const palos = ['♠️', '♥️', '♣️', '♦️'];
+            const valores = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+            const dar = () => ({ val: valores[Math.floor(Math.random()*13)], palo: palos[Math.floor(Math.random()*4)] });
             const calc = (m) => {
                 let p = 0, a = 0;
-                m.forEach(c => { if(c==="A") a++; else p += (isNaN(c)?10:parseInt(c)); });
-                for(let i=0; i<a; i++) p += (p+11 <= 21) ? 11 : 1;
+                m.forEach(c => { if(c.val === "A") a++; else p += (isNaN(c.val) ? 10 : parseInt(c.val)); });
+                for(let i=0; i<a; i++) p += (p + 11 <= 21) ? 11 : 1;
                 return p;
             };
+            const render = (m) => m.map(c => `\`${c.val}${c.palo}\``).join(' ');
 
             let manoU = [dar(), dar()], manoD = [dar()];
             const row = new ActionRowBuilder().addComponents(
@@ -51,11 +57,8 @@ module.exports = {
                 new ButtonBuilder().setCustomId('s').setLabel('Plantarse').setStyle(ButtonStyle.Secondary)
             );
 
-            const embed = new EmbedBuilder().setTitle('Juego de Blackjack').setColor(0x000000)
-                .addFields(
-                    { name: 'Tus Cartas', value: `${manoU.join(' ')}\nTotal: ${calc(manoU)}`, inline: true },
-                    { name: 'Dealer', value: `${manoD[0]} ?`, inline: true }
-                );
+            const embed = new EmbedBuilder().setTitle('🃏 Blackjack').setColor('#2b2d31')
+                .addFields({ name: 'Tú', value: `${render(manoU)}\nTotal: ${calc(manoU)}`, inline: true }, { name: 'Dealer', value: `${render(manoD)} ??`, inline: true });
 
             const msg = await interaction.reply({ embeds: [embed], components: [row], fetchReply: true });
             const col = msg.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 40000 });
@@ -64,116 +67,131 @@ module.exports = {
                 if (i.customId === 'h') {
                     manoU.push(dar());
                     if (calc(manoU) > 21) {
-                        col.stop();
-                        db.saveAll();
-                        return i.update({ embeds: [new EmbedBuilder().setTitle('Perdiste').setColor(0x000000).setDescription(`Te pasaste con ${calc(manoU)}\nMano: ${manoU.join(' ')}`)], components: [] });
+                        col.stop(); db.saveAll();
+                        return i.update({ embeds: [new EmbedBuilder().setTitle('💥 Te pasaste').setDescription(`${render(manoU)}\nTotal: ${calc(manoU)}`).setColor('#ED4245')], components: [] });
                     }
-                    await i.update({ embeds: [new EmbedBuilder().setTitle('Juego de Blackjack').setColor(0x000000).addFields({ name: 'Tus Cartas', value: `${manoU.join(' ')}\nTotal: ${calc(manoU)}`, inline: true }, { name: 'Dealer', value: `${manoD[0]} ?`, inline: true })] });
+                    await i.update({ embeds: [new EmbedBuilder().setTitle('🃏 Blackjack').setColor('#2b2d31').addFields({ name: 'Tú', value: `${render(manoU)}\nTotal: ${calc(manoU)}`, inline: true }, { name: 'Dealer', value: `${render(manoD)} ??`, inline: true })] });
                 } else {
                     col.stop();
                     while(calc(manoD) < 17) manoD.push(dar());
-                    let pU = calc(manoU), pD = calc(manoD);
-                    let res = (pD > 21 || pU > pD) ? 'Ganaste' : (pU === pD ? 'Empate' : 'Perdiste');
-                    if(!esGratis) { if(res==='Ganaste') user.coins += amount*2; else if(res==='Empate') user.coins += amount; db.saveAll(); }
-                    await i.update({ embeds: [new EmbedBuilder().setTitle(res).setColor(0x000000).addFields({ name: 'Tú', value: `${pU}`, inline: true }, { name: 'Dealer', value: `${pD}`, inline: true }).setFooter({ text: `Saldo final: ${user.coins}` })], components: [] });
+                    let pU = calc(manoU), pD = calc(manoD), res = (pD > 21 || pU > pD) ? 'Ganaste' : (pU === pD ? 'Empate' : 'Perdiste');
+                    if(!esGratis) { if(res==='Ganaste') user.coins += Math.floor(amount * 1.8); else if(res==='Empate') user.coins += amount; db.saveAll(); }
+                    await i.update({ embeds: [new EmbedBuilder().setTitle(res).setColor(res === 'Ganaste' ? '#57F287' : '#2b2d31').addFields({ name: 'Tú', value: `\`${pU}\``, inline: true }, { name: 'Dealer', value: `\`${pD}\``, inline: true }).setFooter({ text: `Saldo: ${user.coins} ${db.emoji}` })], components: [] });
                 }
-            });
-        }
-
-        // --- SLOTS ---
-        if (sub === 'slots') {
-            const extra = esGratis ? 0 : 50;
-            if (!esGratis && user.coins < (amount + extra)) return interaction.reply({ content: 'Faltan 50 coins por servicio.', ephemeral: true });
-            if (!esGratis) user.coins -= (amount + extra);
-
-            const ems = ['💎', '🎰', '🔔', '🍒'];
-            const r = [ems[Math.floor(Math.random()*4)], ems[Math.floor(Math.random()*4)], ems[Math.floor(Math.random()*4)]];
-            let mult = (r[0] === r[1] && r[1] === r[2]) ? 3 : (r[0] === r[1] || r[1] === r[2] || r[0] === r[2] ? 1.5 : 0);
-            
-            if (!esGratis) user.coins += Math.floor(amount * mult);
-            db.saveAll();
-
-            const embed = new EmbedBuilder().setTitle('Maquina de Slots').setColor(0x000000)
-                .setDescription(`[ ${r.join(' | ')} ]\n\n${mult > 0 ? `Ganaste ${amount * mult} coins` : 'Perdiste la apuesta'}`)
-                .setFooter({ text: `Saldo: ${user.coins}` });
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        // --- PENALTIS ---
-        if (sub === 'penaltis') {
-            const dif = interaction.options.getString('dificultad') || 'mid';
-            const slots = dif === 'easy' ? 2 : (dif === 'mid' ? 4 : 6);
-            const portero = Array.from({ length: slots }, () => Math.floor(Math.random() * 9) + 1);
-
-            const rows = [
-                new ActionRowBuilder().addComponents([1, 2, 3].map(n => new ButtonBuilder().setCustomId(`p${n}`).setLabel('🥅').setStyle(ButtonStyle.Secondary))),
-                new ActionRowBuilder().addComponents([4, 5, 6].map(n => new ButtonBuilder().setCustomId(`p${n}`).setLabel('🥅').setStyle(ButtonStyle.Secondary))),
-                new ActionRowBuilder().addComponents([7, 8, 9].map(n => new ButtonBuilder().setCustomId(`p${n}`).setLabel('🥅').setStyle(ButtonStyle.Secondary)))
-            ];
-
-            const msg = await interaction.reply({ content: `El portero cubre ${slots} lugares. ¡Tira!`, components: rows, fetchReply: true });
-            const col = msg.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 20000 });
-
-            col.on('collect', async i => {
-                col.stop();
-                if (!esGratis) user.coins -= amount;
-                const tiro = parseInt(i.customId.replace('p', ''));
-                const gol = !portero.includes(tiro);
-                if (gol && !esGratis) user.coins += amount * 2;
-                db.saveAll();
-                await i.update({ content: gol ? `Gol ganado: ${amount * 2} coins` : `Atajado por el portero`, components: [], embeds: [new EmbedBuilder().setColor(0x000000).setFooter({ text: `Saldo: ${user.coins}` })] });
             });
         }
 
         // --- SNAKE ---
         if (sub === 'snake') {
             if (!esGratis) user.coins -= amount;
-            db.saveAll();
-
-            let x = 2, y = 2, fx = 0, fy = 0, pts = 0;
+            let x = 2, y = 2, fx = 0, fy = 0, pts = 0, dir = 'right', cuerpo = [{x:2, y:2}];
             const genF = () => { fx = Math.floor(Math.random()*5); fy = Math.floor(Math.random()*5); };
             genF();
-
             const draw = () => {
                 let b = "";
                 for (let i=0; i<5; i++) {
                     for (let j=0; j<5; j++) {
-                        if (x === j && y === i) b += "🟢";
+                        if (cuerpo.some(p => p.x === j && p.y === i)) b += "🟢";
                         else if (fx === j && fy === i) b += "🍎";
                         else b += "⬛";
-                    }
-                    b += "\n";
+                    } b += "\n";
+                } return b;
+            };
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('up').setEmoji('⬆️').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('down').setEmoji('⬇️').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('left').setEmoji('⬅️').setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder().setCustomId('right').setEmoji('➡️').setStyle(ButtonStyle.Secondary)
+            );
+            await interaction.reply({ embeds: [new EmbedBuilder().setTitle('🐍 Snake').setDescription(draw()).setColor('#57F287')], components: [row] });
+            const col = interaction.channel.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 60000 });
+            const game = setInterval(async () => {
+                if (dir==='up') y--; if (dir==='down') y++; if (dir==='left') x--; if (dir==='right') x++;
+                if (x<0 || x>4 || y<0 || y>4 || cuerpo.some(p => p.x === x && p.y === y)) {
+                    clearInterval(game); col.stop();
+                    const premio = (pts >= 50 && !esGratis) ? Math.floor(amount * 1.5) : 0;
+                    user.coins += premio; db.saveAll();
+                    return interaction.editReply({ content: `💥 Game Over. Puntos: ${pts} | Ganancia: ${premio}`, embeds: [], components: [] });
                 }
-                return b;
+                cuerpo.unshift({x, y});
+                if (x === fx && y === fy) { pts += 10; genF(); } else cuerpo.pop();
+                await interaction.editReply({ embeds: [new EmbedBuilder().setTitle(`Puntos: ${pts}`).setDescription(draw()).setColor('#57F287')] });
+            }, 2200);
+            col.on('collect', async i => { dir = i.customId; await i.deferUpdate(); });
+        }
+
+        // --- SLOTS ---
+        if (sub === 'slots') {
+            const extra = esGratis ? 0 : 40;
+            if (!esGratis && user.coins < (amount + extra)) return interaction.reply({ content: `Faltan 40 ${db.emoji} de comisión.`, flags: [MessageFlags.Ephemeral] });
+            if (!esGratis) user.coins -= (amount + extra);
+            const items = ['🍎', '🔔', '🎰', '🍒', '🍋', '💎'];
+            const r = [items[Math.floor(Math.random()*6)], items[Math.floor(Math.random()*6)], items[Math.floor(Math.random()*6)]];
+            let mult = (r[0] === r[1] && r[1] === r[2]) ? 3.0 : (r[0] === r[1] || r[1] === r[2] || r[0] === r[2] ? 1.2 : 0);
+            if (!esGratis) user.coins += Math.floor(amount * mult);
+            db.saveAll();
+            return interaction.reply({ embeds: [new EmbedBuilder().setTitle('🎰 Slots').setDescription(`**[ ${r.join(' | ')} ]**\n\n${mult > 0 ? `✨ Ganaste **${Math.floor(amount * mult)}** ${db.emoji}` : 'Perdiste'}`).setFooter({ text: `Saldo: ${user.coins} ${db.emoji}` })] });
+        }
+
+        // --- PENALTIS MEJORADOS ---
+        if (sub === 'penaltis') {
+            const dif = interaction.options.getString('dificultad');
+            const rondasMax = interaction.options.getInteger('rondas') || 3;
+            let ronda = 1, gU = 0, gP = 0;
+            const cfg = { easy: { s: 3, m: 1.1 }, mid: { s: 5, m: 1.8 }, hard: { s: 7, m: 3.5 } };
+            
+            if (!esGratis) user.coins -= amount;
+            db.saveAll();
+
+            const getPortero = () => { 
+                let p = []; 
+                while(p.length < cfg[dif].s) { 
+                    let n = Math.floor(Math.random() * 9) + 1; 
+                    if(!p.includes(n)) p.push(n); 
+                } return p; 
             };
 
-            const ctrl = [
-                new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('up').setLabel('Arriba').setStyle(ButtonStyle.Secondary)),
-                new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId('left').setLabel('Izquierda').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId('down').setLabel('Abajo').setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder().setCustomId('right').setLabel('Derecha').setStyle(ButtonStyle.Secondary)
-                )
-            ];
+            const row1 = new ActionRowBuilder().addComponents([1, 2, 3].map(n => new ButtonBuilder().setCustomId(`p${n}`).setLabel('🥅').setStyle(ButtonStyle.Secondary)));
+            const row2 = new ActionRowBuilder().addComponents([4, 5, 6].map(n => new ButtonBuilder().setCustomId(`p${n}`).setLabel('🥅').setStyle(ButtonStyle.Secondary)));
+            const row3 = new ActionRowBuilder().addComponents([7, 8, 9].map(n => new ButtonBuilder().setCustomId(`p${n}`).setLabel('🥅').setStyle(ButtonStyle.Secondary)));
 
-            const msg = await interaction.reply({ embeds: [new EmbedBuilder().setTitle('Juego Snake').setDescription(draw()).setColor(0x000000)], components: ctrl, fetchReply: true });
+            const msg = await interaction.reply({ 
+                embeds: [new EmbedBuilder().setTitle('⚽ Penaltis').setDescription(`Ronda: ${ronda}/${rondasMax}\nMarcador: **${gU} - ${gP}**`).setColor('#2b2d31')], 
+                components: [row1, row2, row3], 
+                fetchReply: true 
+            });
+
             const col = msg.createMessageComponentCollector({ filter: i => i.user.id === interaction.user.id, time: 60000 });
 
             col.on('collect', async i => {
-                if (i.customId === 'up') y--; if (i.customId === 'down') y++;
-                if (i.customId === 'left') x--; if (i.customId === 'right') x++;
+                const tiro = parseInt(i.customId.replace('p', ''));
+                const portero = getPortero();
+                
+                if (!portero.includes(tiro)) gU++;
+                if (Math.random() > 0.5) gP++;
+                ronda++;
 
-                if (x<0 || x>4 || y<0 || y>4) {
-                    col.stop();
-                    const final = pts >= 30 && !esGratis ? amount * 2 : 0;
-                    if (final > 0) user.coins += final;
+                const esMuerteSubita = ronda > rondasMax;
+                const hayGanador = esMuerteSubita && gU !== gP;
+
+                if (hayGanador) {
+                    col.stop('finished');
+                    const gano = gU > gP;
+                    let premio = 0;
+                    if (gano && !esGratis) {
+                        const bonoRondas = 1 + ((rondasMax - 1) * 0.05);
+                        premio = Math.floor(amount * cfg[dif].m * bonoRondas);
+                        if (premio > amount * 3.55) premio = Math.floor(amount * 3.55);
+                        user.coins += premio;
+                    }
                     db.saveAll();
-                    return i.update({ content: `Chocaste. Puntos: ${pts}. Ganancia: ${final}`, embeds: [], components: [] });
+                    return i.update({ 
+                        embeds: [new EmbedBuilder().setTitle(gano ? '🏆 ¡Ganaste!' : '❌ Perdiste').setDescription(`Marcador: **${gU} - ${gP}**\n${gano ? `Premio: **${premio} ${db.emoji}**` : 'Suerte la próxima.'}`).setColor(gano ? '#57F287' : '#ED4245')], 
+                        components: [] 
+                    });
                 }
-
-                if (x === fx && y === fy) { pts += 10; genF(); }
-                await i.update({ embeds: [new EmbedBuilder().setTitle(`Puntos: ${pts}`).setDescription(draw()).setColor(0x000000)] });
+                await i.update({ embeds: [new EmbedBuilder().setTitle('⚽ Penaltis').setDescription(`Ronda: ${ronda > rondasMax ? '**MUERTE SÚBITA**' : `**${ronda}/${rondasMax}**`}\nMarcador: **${gU} - ${gP}**`).setColor('#FEE75C')] });
             });
         }
-    }
+    },
 };

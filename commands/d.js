@@ -41,7 +41,7 @@ module.exports = {
                 user.completedDaily = true;
                 premioTxt = "🏆 Recompensa final: 300 coins y rol de Fracasado";
                 
-                const roleId = 'ID_DE_TU_ROL'; 
+                const roleId = '1481359260175569127'; 
                 const role = message.guild.roles.cache.get(roleId);
                 if (role) message.member.roles.add(role).catch(() => null);
                 break;
