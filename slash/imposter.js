@@ -5,31 +5,61 @@ const activeGames = new Map();
 
 // --- BASE DE DATOS INTEGRADA ---
 const gameData = {
-    'Cine': [
-        { palabra: 'Titanic', pistas: ['Barco', 'Iceberg', 'Océano'] },
-        { palabra: 'Star Wars', pistas: ['Espacio', 'Sable de luz', 'Galaxia'] },
-        { palabra: 'Harry Potter', pistas: ['Magia', 'Varita', 'Cicatriz'] },
-        { palabra: 'Avatar', pistas: ['Azul', 'Naturaleza', 'Pandora'] }
+    "Cine": [
+        { palabra: "Batman", pistas: ["Capa", "Gotham", "Noche", "Murciélago"] },
+        { palabra: "Shrek", pistas: ["Ogro", "Pantano", "Burro", "Verde"] },
+        { palabra: "Titanic", pistas: ["Barco", "Iceberg", "Océano", "Rose"] },
+        { palabra: "Spider-Man", pistas: ["Telaraña", "Rojo", "Salto", "Nueva York"] },
+        { palabra: "Harry Potter", pistas: ["Mago", "Varita", "Cicatriz", "Búho"] },
+        { palabra: "Star Wars", pistas: ["Sable", "Fuerza", "Espacio", "Galaxia"] },
+        { palabra: "Avatar", pistas: ["Azul", "Selva", "Naturaleza", "Flecha"] },
+        { palabra: "Joker", pistas: ["Risa", "Maquillaje", "Caos", "Payaso"] },
+        { palabra: "Avengers", pistas: ["Equipo", "Gema", "Héroe", "Escudo"] },
+        { palabra: "Toy Story", pistas: ["Juguete", "Vaquero", "Bota", "Amistad"] },
+        { palabra: "Frozen", pistas: ["Nieve", "Hielo", "Princesa", "Castillo"] },
+        { palabra: "Minions", pistas: ["Banana", "Amarillo", "Gafas", "Villano"] },
+        { palabra: "Matrix", pistas: ["Píldora", "Código", "Simulación", "Gafas"] },
+        { palabra: "Rey León", pistas: ["Sabana", "Rugido", "Selva", "Cachorro"] },
+        { palabra: "Jurassic Park", pistas: ["Dinosaurio", "Isla", "Hueso", "ADN"] }
+        // Agrega más aquí siguiendo este formato [{palabra, pistas}, ...]
     ],
-    'Comida': [
-        { palabra: 'Pizza', pistas: ['Italia', 'Queso', 'Masa'] },
-        { palabra: 'Sushi', pistas: ['Arroz', 'Japón', 'Pescado'] },
-        { palabra: 'Tacos', pistas: ['México', 'Tortilla', 'Picante'] },
-        { palabra: 'Hamburguesa', pistas: ['Carne', 'Pan', 'Ketchup'] }
+    "Lugares": [
+        { palabra: "París", pistas: ["Torre", "Francia", "Pan", "Arte"] },
+        { palabra: "Egipto", pistas: ["Pirámide", "Faraón", "Desierto", "Río"] },
+        { palabra: "Londres", pistas: ["Reloj", "Niebla", "Reina", "Puente"] },
+        { palabra: "Japón", pistas: ["Sushi", "Anime", "Isla", "Tecnología"] },
+        { palabra: "Roma", pistas: ["Coliseo", "Pizza", "Historia", "Gladiador"] },
+        { palabra: "Nueva York", pistas: ["Estatua", "Rascacielos", "Taxi", "Manzana"] },
+        { palabra: "Brasil", pistas: ["Fútbol", "Selva", "Carnaval", "Playa"] },
+        { palabra: "China", pistas: ["Muralla", "Dragón", "Arroz", "Panda"] },
+        { palabra: "México", pistas: ["Taco", "Sombrero", "Mariachi", "Picante"] },
+        { palabra: "Australia", pistas: ["Canguro", "Isla", "Desierto", "Ópera"] }
     ],
-    'Lugares': [
-        { palabra: 'París', pistas: ['Francia', 'Torre Eiffel', 'Amor'] },
-        { palabra: 'Egipto', pistas: ['Pirámides', 'Desierto', 'Nilo'] },
-        { palabra: 'Japón', pistas: ['Tokio', 'Anime', 'Sushi'] },
-        { palabra: 'Roma', pistas: ['Coliseo', 'Italia', 'Gladiadores'] }
+    "Comida": [
+        { palabra: "Pizza", pistas: ["Masa", "Queso", "Horno", "Italia"] },
+        { palabra: "Hamburguesa", pistas: ["Carne", "Pan", "Ketchup", "Papas"] },
+        { palabra: "Sushi", pistas: ["Arroz", "Pescado", "Palillos", "Alga"] },
+        { palabra: "Taco", pistas: ["Tortilla", "Carne", "Picante", "Cebolla"] },
+        { palabra: "Helado", pistas: ["Frío", "Copa", "Dulce", "Chocolate"] },
+        { palabra: "Pasta", pistas: ["Tenedor", "Salsa", "Trigo", "Agua"] },
+        { palabra: "Chocolate", pistas: ["Dulce", "Marrón", "Leche", "Cacao"] },
+        { palabra: "Donas", pistas: ["Agujero", "Dulce", "Glaseado", "Caja"] },
+        { palabra: "Café", pistas: ["Grano", "Taza", "Negro", "Energía"] },
+        { palabra: "Paella", pistas: ["Arroz", "Sartén", "Marisco", "España"] }
     ],
-    'Animales': [
-        { palabra: 'León', pistas: ['Selva', 'Melena', 'Rugido'] },
-        { palabra: 'Elefante', pistas: ['Trompa', 'Grande', 'Colmillos'] },
-        { palabra: 'Tiburón', pistas: ['Mar', 'Dientes', 'Aleta'] },
-        { palabra: 'Pingüino', pistas: ['Hielo', 'Blanco y Negro', 'Antártida'] }
+    "Animales": [
+        { palabra: "Perro", pistas: ["Ladrido", "Hueso", "Leal", "Caminar"] },
+        { palabra: "Gato", pistas: ["Maullido", "Ratón", "Leche", "Dormir"] },
+        { palabra: "Elefante", pistas: ["Trompa", "Grande", "Gris", "Orejas"] },
+        { palabra: "León", pistas: ["Melena", "Rey", "Rugido", "Selva"] },
+        { palabra: "Tiburón", pistas: ["Dientes", "Aleta", "Mar", "Peligro"] },
+        { palabra: "Mono", pistas: ["Banana", "Árbol", "Gracioso", "Pelaje"] },
+        { palabra: "Delfín", pistas: ["Agua", "Inteligente", "Salto", "Océano"] },
+        { palabra: "Pingüino", pistas: ["Frío", "Hielo", "Vuelo", "Pájaro"] },
+        { palabra: "Jirafa", pistas: ["Cuello", "Alto", "Manchas", "Hojas"] },
+        { palabra: "Lobo", pistas: ["Luna", "Manada", "Aullido", "Bosque"] }
     ]
-};
+});
 
 module.exports = {
     activeGames, 
