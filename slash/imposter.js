@@ -3,6 +3,10 @@ const ImposterGame = require('./game.js');
 
 const activeGames = new Map();
 
+<<<<<<< HEAD
+=======
+// --- BASE DE DATOS INTEGRADA ---
+>>>>>>> 94aea9829507e3a6eb933e5a1bd81f375057c0fb
 const gameData = {
     "Cine": [
         { palabra: "Batman", pistas: ["Capa", "Gotham", "Noche", "Murciélago"] },
@@ -20,6 +24,10 @@ const gameData = {
         { palabra: "Matrix", pistas: ["Píldora", "Código", "Simulación", "Gafas"] },
         { palabra: "Rey León", pistas: ["Sabana", "Rugido", "Selva", "Cachorro"] },
         { palabra: "Jurassic Park", pistas: ["Dinosaurio", "Isla", "Hueso", "ADN"] }
+<<<<<<< HEAD
+=======
+        // Agrega más aquí siguiendo este formato [{palabra, pistas}, ...]
+>>>>>>> 94aea9829507e3a6eb933e5a1bd81f375057c0fb
     ],
     "Lugares": [
         { palabra: "París", pistas: ["Torre", "Francia", "Pan", "Arte"] },
@@ -248,7 +256,7 @@ module.exports = {
                 const sColl = sMsg.createMessageComponentCollector({ filter: i => i.user.id === currentGame.host.id, time: 15000 });
 
                 sColl.on('collect', async i => {
-                    if (i.customId === 'confirm_stop') {
+                       if (i.customId === 'confirm_stop') {
                         activeGames.delete(interaction.channelId);
                         textCollector.stop();
                         buttonCollector.stop();
