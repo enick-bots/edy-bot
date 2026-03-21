@@ -134,10 +134,10 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // Respuestas automáticas
-    if (message.mentions.has('1292577920149360690')) {
-        return message.reply("bro encuerate y manda foto 👀");
-    }
+  if (message.mentions.users.has('1292577920149360690') && !message.reference) {
+    return message.reply("bro encuerate y manda foto 👀");
+}
+
 
     const gatillos = ["q", "que", "k", "ke"];
     if (gatillos.includes(message.content.toLowerCase().trim())) {
@@ -145,40 +145,5 @@ client.on('messageCreate', async (message) => {
         return message.reply(emojiServidor ? `so ${emojiServidor}` : "so 🧀");
     }
 });
-const { activeGames } = require('./slash/imposter.js');
-
-
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-    const game = activeGames.get(message.channelId);
-    if (!game) return;
-
-    // .kick @user
-    if (message.content.startsWith('.kick')) {
-        if (message.author.id !== game.host.id) return;
-        const target = message.mentions.users.first();
-        if (target) {
-            game.bannedIds.push(target.id);
-            game.players = game.players.filter(p => p.id !== target.id);
-            message.reply(`👞 **${target.username}** ha sido expulsado y baneado de la sala.`);
-        }
-    }
-
-    // .stop
-    if (message.content === '.stop') {
-        if (message.author.id !== game.host.id) return;
-        activeGames.delete(message.channelId);
-        message.reply("🛑 Partida detenida por el host.");
-    }
-
-    // .reveal
-    if (message.content === '.reveal') {
-        if (!game.started) return;
-        const imps = game.imposterIds.map(id => `<@${id}>`).join(', ');
-        message.reply(`📢 Los impostores eran: ${imps}\nLa palabra era: **${game.word}**`);
-        activeGames.delete(message.channelId);
-    }
-});
-
 
 client.login(process.env.TOKEN);
