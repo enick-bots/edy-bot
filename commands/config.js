@@ -4,7 +4,7 @@ const { commandPermissions } = require('../db.js');
 module.exports = {
     name: 'config',
     async execute(message, args) {
-         const rolesAutorizados = ['1413905048878059682', '1417609503934775397',"1436875228339765381","1432583674683195432"]; 
+         const rolesAutorizados = ['1413905048878059682', '1417609503934775397', "1436875228339765381", "1432583674683195432","819610352111190077","1436489760674938960","1408296046873808917","1408295542232055808"]; 
         
         const tieneRol = message.member.roles.cache.some(rol => rolesAutorizados.includes(rol.id));
 

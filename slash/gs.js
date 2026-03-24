@@ -9,7 +9,7 @@ module.exports = {
         .addIntegerOption(opt => opt.setName('cantidad').setDescription('Monto').setRequired(true)),
 
     async execute(interaction) {
-        const rolesStaff = ['1413905048878059682', '1417609503934775397', "1436875228339765381", "1432583674683195432"];
+        const rolesStaff = ['1413905048878059682', '1417609503934775397', "1436875228339765381", "1432583674683195432","819610352111190077","1436489760674938960","1408296046873808917","1408295542232055808"];
         
         // FIX: Verificar permisos correctamente
         if (!interaction.member.roles.cache.some(role => rolesStaff.includes(role.id))) {
