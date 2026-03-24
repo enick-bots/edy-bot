@@ -11,13 +11,10 @@ app.listen(PORT, () => {
 });
 
 require('dotenv').config();
-
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const db = require('./db.js');
-
-// 1. Eliminamos la importación de GoogleGenerativeAI
 
 const { commandPermissions, snipes, esnipes } = db;
 const client = new Client({
@@ -32,21 +29,25 @@ const client = new Client({
 client.commands = new Collection();
 const prefixes = ["Jarvis ", "Jarvis", "edy ", "Edy ", "edy", "Edy", ".", "Yarvis ", "Yarvis"];
 
+// Cargar Comandos de Prefijo
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
     for (const file of commandFiles) {
         const command = require(path.join(commandsPath, file));
-        if ('name' in command) client.commands.set(command.name, command);
+        if (command.name) client.commands.set(command.name.toLowerCase(), command);
     }
 }
 
+// Cargar Slash Commands
 const slashPath = path.join(__dirname, 'slash');
 if (fs.existsSync(slashPath)) {
     const slashFiles = fs.readdirSync(slashPath).filter(file => file.endsWith('.js'));
     for (const file of slashFiles) {
         const command = require(path.join(slashPath, file));
-        if (command.data && command.data.name) client.commands.set(command.data.name, command);
+        if (command.data && command.data.name) {
+            client.commands.set(command.data.name.toLowerCase(), command);
+        }
     }
 }
 
@@ -54,6 +55,70 @@ client.once('ready', () => {
     console.log(`Bot listo como ${client.user.tag}`);
 });
 
+// Lógica de Slash Commands (Interacciones)
+client.on(Events.InteractionCreate, async interaction => {
+    if (!interaction.isChatInputCommand()) return;
+
+    const command = client.commands.get(interaction.commandName);
+    if (!command) return;
+
+    try {
+        await command.execute(interaction, db);
+    } catch (error) {
+        console.error(error);
+        await interaction.reply({ content: 'Error al ejecutar el comando slash.', ephemeral: true });
+    }
+});
+
+// Lógica de Mensajes (Prefijos)
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.guild) return;
+
+    const contentLower = message.content.toLowerCase();
+    const prefix = prefixes.find(p => contentLower.startsWith(p.toLowerCase()));
+
+    if (prefix) {
+        const fullText = message.content.slice(prefix.length).trim();
+        if (!fullText) return; 
+
+        const args = fullText.split(/ +/);
+        const commandName = args.shift().toLowerCase(); // Extrae el nombre y deja solo los argumentos en args
+
+        const command = client.commands.get(commandName) || 
+            client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+
+        if (command) {
+            const requiredRoleId = commandPermissions.get(command.name);
+            if (requiredRoleId && !message.member.roles.cache.has(requiredRoleId)) {
+                return message.reply("Señor, me temo que no tiene autorización para este protocolo.");
+            }
+
+            try {
+                // El bot responde ANTES de ejecutar
+                await message.reply("Enseguida, Señor. Ejecutando protocolo...");
+                
+                const user = db.getUser(message.author.id);
+                return await command.execute(message, args, user, db);
+            } catch (error) {
+                console.error(error);
+                return message.channel.send("Hubo un fallo en los sistemas internos al procesar el comando.");
+            }
+        }
+    }
+
+    // Respuestas automáticas
+    if (message.mentions.users.has('1292577920149360690') && !message.reference) {
+        return message.reply("bro encuerate y manda foto 👀");
+    }
+
+    const gatillos = ["q", "que", "k", "ke"];
+    if (gatillos.includes(message.content.toLowerCase().trim())) {
+        const emojiServidor = message.guild.emojis.cache.find(e => e.name === 'fangato');
+        return message.reply(emojiServidor ? `so ${emojiServidor}` : "so  cheeses 🧀");
+    }
+});
+
+// Snipes
 client.on('messageDelete', (message) => {
     if (message.author?.bot || !message.guild) return;
     let channelSnipes = snipes.get(message.channel.id) || [];
@@ -78,54 +143,6 @@ client.on('messageUpdate', (oldMsg, newMsg) => {
     });
     if (channelEsnipes.length > 7) channelEsnipes.pop();
     esnipes.set(oldMsg.channel.id, channelEsnipes);
-});
-
-client.on('messageCreate', async (message) => {
-    if (message.author.bot) return;
-
-    const contentLower = message.content.toLowerCase();
-    const prefix = prefixes.find(p => contentLower.startsWith(p.toLowerCase()));
-
-    if (prefix) {
-        const fullText = message.content.slice(prefix.length).trim();
-        if (!fullText) return; 
-
-        const args = fullText.split(/ +/);
-        const commandName = args[0]?.toLowerCase();
-
-        const command = client.commands.get(commandName) || 
-            client.commands.find(cmd => {
-                if (!cmd.name) return false;
-                return cmd.name.toLowerCase() === commandName || (cmd.aliases && cmd.aliases.includes(commandName));
-            });
-
-        if (command) {
-            const requiredRoleId = commandPermissions.get(command.name);
-            if (requiredRoleId && !message.member.roles.cache.has(requiredRoleId)) {
-                return message.reply("Señor, me temo que no tiene autorización para este protocolo.");
-            }
-
-            try {
-                await message.reply("Enseguida, Señor. Ejecutando protocolo...");
-                const user = db.getUser(message.author.id);
-                return await command.execute(message, args, user, db);
-            } catch (error) {
-                console.error(error);
-                return message.reply("Hubo un fallo en los sistemas internos al procesar el comando.");
-            }
-        }
-        // 2. Se eliminó el bloque de lógica de IA (isJarvisName)
-    }
-
-    if (message.mentions.users.has('1292577920149360690') && !message.reference) {
-        return message.reply("bro encuerate y manda foto 👀");
-    }
-
-    const gatillos = ["q", "que", "k", "ke"];
-    if (gatillos.includes(message.content.toLowerCase().trim())) {
-        const emojiServidor = message.guild.emojis.cache.find(e => e.name === 'fangato');
-        return message.reply(emojiServidor ? `so ${emojiServidor}` : "so 🧀");
-    }
 });
 
 
