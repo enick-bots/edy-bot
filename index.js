@@ -11,14 +11,15 @@ app.listen(PORT, () => {
 });
 
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, MessageFlags } = require('discord.js');
+
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const db = require('./db.js');
 
-// --- CORRECCIÓN DE IMPORTACIÓN ---
-const db = require('./db.js'); 
-const { commandPermissions, snipes, esnipes } = db; 
+// 1. Eliminamos la importación de GoogleGenerativeAI
 
+const { commandPermissions, snipes, esnipes } = db;
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -29,9 +30,8 @@ const client = new Client({
 });
 
 client.commands = new Collection();
-const prefixes = ["Jarvis ", "Jarvis", "edy ", "Edy ", "edy", "Edy", "."];
+const prefixes = ["Jarvis ", "Jarvis", "edy ", "Edy ", "edy", "Edy", ".", "Yarvis ", "Yarvis"];
 
-// Cargar comandos de prefijo
 const commandsPath = path.join(__dirname, 'commands');
 if (fs.existsSync(commandsPath)) {
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -41,7 +41,6 @@ if (fs.existsSync(commandsPath)) {
     }
 }
 
-// Cargar Slash Commands
 const slashPath = path.join(__dirname, 'slash');
 if (fs.existsSync(slashPath)) {
     const slashFiles = fs.readdirSync(slashPath).filter(file => file.endsWith('.js'));
@@ -55,7 +54,6 @@ client.once('ready', () => {
     console.log(`Bot listo como ${client.user.tag}`);
 });
 
-// Eventos de Snipe
 client.on('messageDelete', (message) => {
     if (message.author?.bot || !message.guild) return;
     let channelSnipes = snipes.get(message.channel.id) || [];
@@ -82,62 +80,46 @@ client.on('messageUpdate', (oldMsg, newMsg) => {
     esnipes.set(oldMsg.channel.id, channelEsnipes);
 });
 
-// --- ÚNICO EVENTO DE INTERACCIÓN ---
-client.on('interactionCreate', async interaction => {
-    if (!interaction.isChatInputCommand()) return;
-
-    const command = client.commands.get(interaction.commandName);
-    if (!command) return;
-
-    // Obtenemos el usuario de la DB antes de ejecutar
-    const user = db.getUser(interaction.user.id); 
-
-    try {
-        // Pasamos interaction, user y db al comando
-        await command.execute(interaction, user, db);
-    } catch (error) {
-        console.error(error);
-        const errorMsg = { content: 'Hubo un error al ejecutar el comando.', flags: [MessageFlags.Ephemeral] };
-        if (interaction.replied || interaction.deferred) await interaction.followUp(errorMsg);
-        else await interaction.reply(errorMsg);
-    }
-});
-
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const contentLower = message.content.toLowerCase();
     const prefix = prefixes.find(p => contentLower.startsWith(p.toLowerCase()));
-    
+
     if (prefix) {
-        const args = message.content.slice(prefix.length).trim().split(/ +/);
-        const commandName = args.shift()?.toLowerCase();
+        const fullText = message.content.slice(prefix.length).trim();
+        if (!fullText) return; 
 
-        if (commandName) {
-            const command = client.commands.get(commandName) || 
-                            client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(commandName));
+        const args = fullText.split(/ +/);
+        const commandName = args[0]?.toLowerCase();
 
-            if (command) {
-                const requiredRoleId = commandPermissions.get(command.name);
-                if (requiredRoleId && !message.member.roles.cache.has(requiredRoleId)) {
-                    return message.reply("No tienes el rol necesario.");
-                }
-                try {
-                    // Para comandos de prefijo, podrías necesitar pasar db y user también:
-                    const user = db.getUser(message.author.id);
-                    return await command.execute(message, args, user, db);
-                } catch (error) {
-                    console.error(error);
-                    return message.reply("Hubo un error al ejecutar este comando.");
-                }
+        const command = client.commands.get(commandName) || 
+            client.commands.find(cmd => {
+                if (!cmd.name) return false;
+                return cmd.name.toLowerCase() === commandName || (cmd.aliases && cmd.aliases.includes(commandName));
+            });
+
+        if (command) {
+            const requiredRoleId = commandPermissions.get(command.name);
+            if (requiredRoleId && !message.member.roles.cache.has(requiredRoleId)) {
+                return message.reply("Señor, me temo que no tiene autorización para este protocolo.");
+            }
+
+            try {
+                await message.reply("Enseguida, Señor. Ejecutando protocolo...");
+                const user = db.getUser(message.author.id);
+                return await command.execute(message, args, user, db);
+            } catch (error) {
+                console.error(error);
+                return message.reply("Hubo un fallo en los sistemas internos al procesar el comando.");
             }
         }
+        // 2. Se eliminó el bloque de lógica de IA (isJarvisName)
     }
 
-  if (message.mentions.users.has('1292577920149360690') && !message.reference) {
-    return message.reply("bro encuerate y manda foto 👀");
-}
-
+    if (message.mentions.users.has('1292577920149360690') && !message.reference) {
+        return message.reply("bro encuerate y manda foto 👀");
+    }
 
     const gatillos = ["q", "que", "k", "ke"];
     if (gatillos.includes(message.content.toLowerCase().trim())) {
@@ -145,8 +127,9 @@ client.on('messageCreate', async (message) => {
         return message.reply(emojiServidor ? `so ${emojiServidor}` : "so 🧀");
     }
 });
-<<<<<<< HEAD
-=======
+
+
+
 const { activeGames } = require('./slash/imposter.js');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
@@ -284,7 +267,5 @@ client.on('messageCreate', async (message) => {
         return message.reply(`👞 **${target.username}** fue expulsado.`);
     }
 });
-
->>>>>>> 94aea9829507e3a6eb933e5a1bd81f375057c0fb
 
 client.login(process.env.TOKEN);

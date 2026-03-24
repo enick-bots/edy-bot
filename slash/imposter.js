@@ -192,15 +192,19 @@ module.exports = {
         activeGames.set(interaction.channelId, game);
 
         const updateEmbed = () => {
-            return new EmbedBuilder()
-                .setTitle("🕵️ MISTERIO: ¿QUIÉN ES EL IMPOSTOR?")
-                .setColor(0x2b2d31)
-                .addFields(
-                    { name: `📌 Categoría`, value: `**${tema.toUpperCase()}**`, inline: false },
-                    { name: "👥 Sala", value: `👤 ${game.players.length}/${game.maxPlayers}`, inline: true },
-                    { name: "👑 Anfitrión", value: `<@${game.host.id}>`, inline: true },
-                    { name: "🎮 Jugadores", value: game.players.map(p => `• <@${p.id}>`).join('\n') || "Esperando..." }
-                );
+
+    const pistasTexto = usePistas ? "✅ **Activadas**" : "❌ **Desactivadas**";
+
+    return new EmbedBuilder()
+        .setTitle("🕵️ MISTERIO: ¿QUIÉN ES EL IMPOSTOR?")
+        .setColor(0x2b2d31)
+        .addFields(
+            { name: `📌 Categoría`, value: `**${tema.toUpperCase()}**`, inline: false },
+            { name: "👥 Sala", value: `👤 ${game.players.length}/${game.maxPlayers}`, inline: true },
+            { name: "👑 Anfitrión", value: `<@${game.host.id}>`, inline: true },
+            { name: "🔍 Pistas", value: pistasTexto, inline: true },
+            { name: "🎮 Jugadores", value: game.players.map(p => `• <@${p.id}>`).join('\n') || "Esperando...", inline: false }
+        );
         };
 
         const row = new ActionRowBuilder().addComponents(
@@ -344,9 +348,10 @@ module.exports = {
                     
                     await i.update({ embeds: [cE], components: [] });
                 }
-             } catch (err) { 
+            } catch (err) { 
                 console.error("Error en botón:", err); 
             }
         }); // Cierre del buttonCollector
+
     } // Cierre del async execute
-};
+}; // Cierre del module.exports

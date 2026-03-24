@@ -15,12 +15,22 @@ module.exports = {
         const unido = time(targetMember.joinedAt, 'R');
         const topRole = targetMember.roles.highest;
 
+        // Lógica de visualización de saldo/deuda
+        const saldoTexto = userData.coins < 0 
+            ? `🔴 **Deuda:** ${userData.coins} ${db.emoji}` 
+            : `Saldo: ${userData.coins} ${db.emoji}`;
+
         const embed = new EmbedBuilder()
             .setAuthor({ name: `Perfil de ${targetUser.username}`, iconURL: targetUser.displayAvatarURL() })
-            .setColor(topRole.color || '#2b2d31')
+            // Cambia a rojo si el usuario debe dinero
+            .setColor(userData.coins < 0 ? '#ED4245' : (topRole.color || '#2b2d31'))
             .setThumbnail(targetUser.displayAvatarURL({ size: 512 }))
             .addFields(
-                { name: '💰 Economía', value: `Saldo: ${userData.coins} ${db.emoji}\nSpins: ${userData.spins} 🌀\nRacha: ${userData.streak || 0} días`, inline: true },
+                { 
+                    name: '💰 Economía', 
+                    value: `${saldoTexto}\nSpins: ${userData.spins} 🌀\nRacha: ${userData.streak || 0} días`, 
+                    inline: true 
+                },
                 { name: '🛡️ Información', value: `Rol mas alto: ${topRole}\nID: ${targetUser.id}`, inline: true },
                 { name: '📅 Fechas', value: `En Discord desde ${creado}\nSe unió al servidor ${unido}`, inline: false }
             )
@@ -29,6 +39,11 @@ module.exports = {
                 iconURL: interaction.user.displayAvatarURL() 
             })
             .setTimestamp();
+
+        // Si debe dinero, añadimos un pequeño aviso extra en el footer o descripción
+        if (userData.coins < 0) {
+            embed.setDescription(`⚠️ *Este usuario tiene pagos pendientes con el casino.*`);
+        }
 
         await interaction.reply({ embeds: [embed] });
     },
